@@ -1,1 +1,3 @@
 data/
+.env
+ojs34_dump.sql
