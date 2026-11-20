@@ -1,0 +1,5 @@
+email;username;perfil OJS
+superadmin@example.com;superadmin;Administrador (role_id 1, contexto 3)
+pkp-manager@pkp.sfu.ca;pkp-manager;Administrador (role_id 1, contexto 4) e Gerente de revista (role_id 16, contexto 4)
+mail@mail.com;renefsuporte;Gerente de revista (role_id 16, contexto 12)
+seso.perspectiva@unimontees.brr;revistassp;Gerente de revista (role_id 16, contexto 17)

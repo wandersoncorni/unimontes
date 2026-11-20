@@ -1,0 +1,92 @@
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN (0x757365725f67726f757073, 0x757365725f757365725f67726f757073, 0x726f6c6573)
+ORDER BY TABLE_NAME, ORDINAL_POSITION;
+SQL
+
+Ran terminal command: rg -n '^' /home/wanderson/.copilot/session-state/6a033389-9a9b-4ad8-b1f3-8ebe4facc378/files/emails-fora-dos-criterios.txt | head -n 3
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT g.role_id, g.context_id, COUNT(DISTINCT ug.user_id) AS assigned_users
+FROM user_groups g
+JOIN user_user_groups ug ON ug.user_group_id = g.user_group_id
+GROUP BY g.role_id, g.context_id
+ORDER BY g.role_id, g.context_id;
+SQL
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT DISTINCT u.email, u.username, ug.role_id, ug.context_id
+FROM users u
+JOIN user_user_groups uug ON uug.user_id = u.user_id
+JOIN user_groups ug ON ug.user_group_id = uug.user_group_id
+WHERE ug.role_id = 1
+ORDER BY ug.context_id, u.email;
+SQL
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN (0x757365725f67726f75705f73657474696e6773, 0x636f6e7465787473)
+ORDER BY TABLE_NAME, ORDINAL_POSITION;
+SQL
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT g.role_id, g.context_id, s.setting_name, s.setting_value
+FROM user_groups g
+JOIN user_group_settings s ON s.user_group_id = g.user_group_id
+WHERE g.role_id IN (1, 16)
+  AND s.setting_name IN (0x726f6c654e616d65, 0x726f6c654e616d6573, 0x6465736372697074696f6e)
+ORDER BY g.role_id, g.context_id, s.locale;
+SQL
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT DISTINCT setting_name, setting_value
+FROM user_group_settings
+WHERE user_group_id IN (SELECT user_group_id FROM user_groups WHERE role_id IN (1, 16))
+ORDER BY setting_name, setting_value
+LIMIT 30;
+SQL
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' > /tmp/ojs-admin-roles.txt <<'SQL'
+SELECT DISTINCT u.email, u.username, ug.role_id, ug.context_id
+FROM users u
+JOIN user_user_groups uug ON uug.user_id = u.user_id
+JOIN user_groups ug ON ug.user_group_id = uug.user_group_id
+WHERE ug.role_id IN (1, 16)
+ORDER BY ug.role_id, ug.context_id, u.email;
+SQL
+python3 -c 'from pathlib import Path; emails={x.strip().casefold() for x in Path("/home/wanderson/.copilot/session-state/6a033389-9a9b-4ad8-b1f3-8ebe4facc378/files/emails-fora-dos-criterios.txt").read_text().splitlines()}; rows=[r.split("\t") for r in Path("/tmp/ojs-admin-roles.txt").read_text().splitlines() if len(r.split("\t"))==4]; [(print("\t".join(r))) for r in rows if r[0].strip().casefold() in emails]'
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT TABLE_NAME, COLUMN_NAME
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN (0x6a6f75726e616c5f73657474696e6773, 0x6a6f75726e616c73)
+ORDER BY TABLE_NAME, ORDINAL_POSITION;
+SQL
+
+Ran terminal command: docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --raw -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+SELECT DISTINCT u.email, u.username, ug.role_id, ug.context_id,
+       COALESCE(js.setting_value, 'site-wide') AS journal_name
+FROM users u
+JOIN user_user_groups uug ON uug.user_id = u.user_id
+JOIN user_groups ug ON ug.user_group_id = uug.user_group_id
+LEFT JOIN journal_settings js ON js.journal_id = ug.context_id AND js.setting_name = 'name' AND js.locale = 'pt_BR'
+WHERE ug.role_id IN (1, 16)
+  AND LOWER(u.email) IN ('[superadmin@example.com](mailto:superadmin@example.com)', '[pkp-manager@pkp.sfu.ca](mailto:pkp-manager@pkp.sfu.ca)', '[mail@mail.com](mailto:mail@mail.com)', '[seso.perspectiva@unimontees.brr](mailto:seso.perspectiva@unimontees.brr)')
+ORDER BY ug.role_id, ug.context_id, u.email;
+SQL
+
+Sim. Encontrei **4 e-mails da lista associados a perfis administrativos no OJS**:
+
+| E-mail | Perfil | Revista |
+|---|---|---|
+| `superadmin@example.com` | Site Admin (`role_id=1`) | Argumentos |
+| `pkp-manager@pkp.sfu.ca` | Site Admin (`role_id=1`) e Journal Manager (`role_id=16`) | Caminhos da História |
+| `mail@mail.com` | Journal Manager (`role_id=16`) | RENEF |
+| `seso.perspectiva@unimontees.brr` | Journal Manager (`role_id=16`) | Revista Serviço Social em Perspectiva |
+
+Considerei tanto o perfil **Site Admin** quanto **Journal Manager**. A verificação foi feita apenas com consultas de leitura; nenhum dado foi alterado.
