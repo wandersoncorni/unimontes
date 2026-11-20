@@ -178,3 +178,39 @@ WHERE ug.role_id <> 1048576 -- Exclui o perfil Leitor
 GROUP BY ug.role_id
 ORDER BY total_perfil DESC;
 ```
+
+
+
+#Queries Individualizadas por Perfil (Para Auditoria e Sanitização)
+#Avaliadores (role_id = 4096) que NUNCA receberam ou fizeram avaliação
+SELECT DISTINCT u.user_id, u.username, u.email, u.date_registered, u.date_last_login
+FROM users u
+INNER JOIN user_user_groups uug ON u.user_id = uug.user_id
+INNER JOIN user_groups ug ON uug.user_group_id = ug.user_group_id
+LEFT JOIN review_assignments ra ON u.user_id = ra.reviewer_id
+WHERE ug.role_id = 4096
+  AND ra.review_id IS NULL;
+
+#Autores (role_id = 65536) que NUNCA submeteram ou participaram de submissão
+SELECT DISTINCT u.user_id, u.username, u.email, u.date_registered, u.date_last_login
+FROM users u
+INNER JOIN user_user_groups uug ON u.user_id = uug.user_id
+INNER JOIN user_groups ug ON uug.user_group_id = ug.user_group_id
+LEFT JOIN stage_assignments sa ON u.user_id = sa.user_id
+LEFT JOIN submission_files sf ON u.user_id = sf.uploader_user_id
+WHERE ug.role_id = 65536
+  AND sa.stage_assignment_id IS NULL
+  AND sf.submission_file_id IS NULL;
+
+#Equipe Editorial (role_id 16, 17, 4097) sem decisões, atribuições ou logs
+SELECT DISTINCT u.user_id, u.username, u.email, ug.role_id, u.date_registered, u.date_last_login
+FROM users u
+INNER JOIN user_user_groups uug ON u.user_id = uug.user_id
+INNER JOIN user_groups ug ON uug.user_group_id = ug.user_group_id
+LEFT JOIN stage_assignments sa ON u.user_id = sa.user_id
+LEFT JOIN edit_decisions ed ON u.user_id = ed.editor_id
+LEFT JOIN event_log el ON u.user_id = el.user_id
+WHERE ug.role_id IN (16, 17, 4097)
+  AND sa.stage_assignment_id IS NULL
+  AND ed.edit_decision_id IS NULL
+  AND el.log_id IS NULL;
