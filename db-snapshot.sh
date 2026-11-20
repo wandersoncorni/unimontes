@@ -1,4 +1,3 @@
-cat << 'EOF' > db-snapshot.sh
 #!/bin/bash
 
 # --- CONFIGURAÇÕES (Ajuste os nomes se necessário) ---
@@ -56,6 +55,3 @@ case "$1" in
         exit 1
         ;;
 esac
-EOF
-
-chmod +x db-snapshot.sh
