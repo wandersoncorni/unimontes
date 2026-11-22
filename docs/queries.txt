@@ -90,3 +90,9 @@ Sim. Encontrei **4 e-mails da lista associados a perfis administrativos no OJS**
 | `seso.perspectiva@unimontees.brr` | Journal Manager (`role_id=16`) | Revista Serviço Social em Perspectiva |
 
 Considerei tanto o perfil **Site Admin** quanto **Journal Manager**. A verificação foi feita apenas com consultas de leitura; nenhum dado foi alterado.
+
+
+
+
+
+

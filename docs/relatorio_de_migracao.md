@@ -55,7 +55,9 @@ ORDER BY
     nome_revista ASC;
 ```
 
-## Total de usuário ativos por perfil
+##  Auditoria de usuários
+
+### Total de usuário ativos por perfil
 
 | Perfil | Total |
 | :--- | ---: |
@@ -90,7 +92,7 @@ GROUP BY ug.role_id
 ORDER BY total ASC;
 ```
 
-## Total de usuários por perfil inativos
+### Total de usuários por perfil inativos
 
 | Perfil | Total |
 | :--- | ---: |
@@ -127,7 +129,7 @@ WHERE ug.role_id = 1048576 -- ID da role Autor
 ORDER BY nome ASC, sobrenome ASC;
 ```
 
-## Classificação de usuários por atividade 
+### Classificação de usuários por atividade 
 
 | Perfil | Com Atividade | Sem Atividade | Total |
 | :--- | ---: | ---: | ---: |
@@ -179,7 +181,7 @@ GROUP BY ug.role_id
 ORDER BY total_perfil DESC;
 ```
 
-
+### Separação dos usuários por perfil, conta ativa e atividade editorial
 
 #Queries Individualizadas por Perfil (Para Auditoria e Sanitização)
 #Avaliadores (role_id = 4096) que NUNCA receberam ou fizeram avaliação
@@ -214,3 +216,158 @@ WHERE ug.role_id IN (16, 17, 4097)
   AND sa.stage_assignment_id IS NULL
   AND ed.edit_decision_id IS NULL
   AND el.log_id IS NULL;
+
+
+## Auditoria das revistas
+
+O objetivo é identificar inconsistências nos registros que possam compromoter o upgrade.
+
+-- 1. Submissões vinculadas a revistas ativas que apontam para Publicação Atual (current_publication_id) inexistente
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'SUBMISSAO', 'Submissão com current_publication_id inexistente', 'submissions', COUNT(*)
+FROM ojs.submissions s
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.publications p ON s.current_publication_id = p.publication_id
+WHERE j.enabled = 1
+  AND s.current_publication_id IS NOT NULL
+  AND p.publication_id IS NULL
+GROUP BY j.journal_id, j.path;
+
+-- 2. Publicações de revistas ativas vinculadas a uma Submissão (submission_id) inexistente
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'PUBLICACAO', 'Publicação sem submissão pai (submission_id órfão)', 'publications', COUNT(*)
+FROM ojs.publications p
+LEFT JOIN ojs.submissions s ON p.submission_id = s.submission_id
+LEFT JOIN ojs.journals j ON s.context_id = j.journal_id
+WHERE s.submission_id IS NULL;
+
+-- 3. Publicações vinculadas a uma Seção (section_id) inexistente ou de outra revista
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'PUBLICACAO', 'Publicação com section_id inválido ou de outra revista', 'publications', COUNT(*)
+FROM ojs.publications p
+INNER JOIN ojs.submissions s ON p.submission_id = s.submission_id
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.sections sec ON p.section_id = sec.section_id AND sec.journal_id = j.journal_id
+WHERE j.enabled = 1
+  AND p.section_id IS NOT NULL
+  AND sec.section_id IS NULL
+GROUP BY j.journal_id, j.path;
+
+-- 4. Publicações vinculadas a uma Edição (issue_id) inexistente ou de outra revista
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'PUBLICACAO', 'Publicação vinculada a issue_id inexistente ou de outra revista', 'publications', COUNT(*)
+FROM ojs.publications p
+INNER JOIN ojs.submissions s ON p.submission_id = s.submission_id
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.issues i ON p.issue_id = i.issue_id AND i.journal_id = j.journal_id
+WHERE j.enabled = 1
+  AND p.issue_id IS NOT NULL
+  AND i.issue_id IS NULL
+GROUP BY j.journal_id, j.path;
+
+-- 5. Arquivos de Submissão (submission_files) cujo arquivo físico (file_id) não existe na tabela files
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'ARQUIVOS', 'Registro em submission_files sem correspondente na tabela files', 'submission_files', COUNT(*)
+FROM ojs.submission_files sf
+INNER JOIN ojs.submissions s ON sf.submission_id = s.submission_id
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.files f ON sf.file_id = f.file_id
+WHERE j.enabled = 1
+  AND f.file_id IS NULL
+GROUP BY j.journal_id, j.path;
+
+-- 6. Atribuições de Etapa (stage_assignments) apontando para usuário (user_id) ou grupo (user_group_id) inexistente
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'USUARIOS_FLUXO', 'stage_assignments com user_id ou user_group_id inexistente', 'stage_assignments', COUNT(*)
+FROM ojs.stage_assignments sa
+INNER JOIN ojs.submissions s ON sa.submission_id = s.submission_id
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.users u ON sa.user_id = u.user_id
+LEFT JOIN ojs.user_groups ug ON sa.user_group_id = ug.user_group_id
+WHERE j.enabled = 1
+  AND (u.user_id IS NULL OR ug.user_group_id IS NULL)
+GROUP BY j.journal_id, j.path;
+
+-- 7. Avaliações (review_assignments) apontando para avaliador (reviewer_id) inexistente
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'AVALIACOES', 'review_assignments com reviewer_id inexistente', 'review_assignments', COUNT(*)
+FROM ojs.review_assignments ra
+INNER JOIN ojs.submissions s ON ra.submission_id = s.submission_id
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.users u ON ra.reviewer_id = u.user_id
+WHERE j.enabled = 1
+  AND u.user_id IS NULL
+GROUP BY j.journal_id, j.path;
+
+-- 8. Decisões Editoriais (edit_decisions) apontando para editor (editor_id) inexistente
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'DECISOES', 'edit_decisions com editor_id inexistente', 'edit_decisions', COUNT(*)
+FROM ojs.edit_decisions ed
+INNER JOIN ojs.submissions s ON ed.submission_id = s.submission_id
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.users u ON ed.editor_id = u.user_id
+WHERE j.enabled = 1
+  AND u.user_id IS NULL
+GROUP BY j.journal_id, j.path;
+
+-- 9. Galés / Arquivos Publicados (publication_galleys) apontando para submission_file_id inexistente
+INSERT INTO auditoria.registros_revistas_orfaos (journal_id, revista_sigla, categoria, descricao_erro, tabela_afetada, qtd_orfaos)
+SELECT j.journal_id, j.path, 'PUBLICACAO', 'publication_galleys com submission_file_id inexistente', 'publication_galleys', COUNT(*)
+FROM ojs.publication_galleys pg
+INNER JOIN ojs.publications p ON pg.publication_id = p.publication_id
+INNER JOIN ojs.submissions s ON p.submission_id = s.submission_id
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.submission_files sf ON pg.submission_file_id = sf.submission_file_id
+WHERE j.enabled = 1
+  AND pg.submission_file_id IS NOT NULL
+  AND sf.submission_file_id IS NULL
+GROUP BY j.journal_id, j.path;
+
+
+A query 1 foi encontrada as queries abaixo listam vinculos e exluem o registro
+
+-- Verifica uma ocorrencia na tabela de foi encontrda com query 1 
+SELECT 
+    j.path AS revista,
+    s.submission_id,
+    s.current_publication_id AS id_apontado_inexistente,
+    s.status,
+    s.date_submitted,
+    s.last_modified,
+    (SELECT GROUP_CONCAT(p2.publication_id) 
+     FROM ojs.publications p2 
+     WHERE p2.submission_id = s.submission_id) AS outras_versoes_existentes
+FROM ojs.submissions s
+INNER JOIN ojs.journals j ON s.context_id = j.journal_id
+LEFT JOIN ojs.publications p ON s.current_publication_id = p.publication_id
+WHERE j.enabled = 1
+  AND s.current_publication_id IS NOT NULL
+  AND p.publication_id IS NULL;
+
+SELECT 'submission_settings' AS tabela, COUNT(*) AS total FROM ojs.submission_settings WHERE submission_id = 9
+UNION ALL
+SELECT 'stage_assignments', COUNT(*) FROM ojs.stage_assignments WHERE submission_id = 9
+UNION ALL
+SELECT 'submission_files', COUNT(*) FROM ojs.submission_files WHERE submission_id = 9
+UNION ALL
+SELECT 'review_rounds', COUNT(*) FROM ojs.review_rounds WHERE submission_id = 9
+UNION ALL
+SELECT 'review_assignments', COUNT(*) FROM ojs.review_assignments WHERE submission_id = 9
+UNION ALL
+SELECT 'edit_decisions', COUNT(*) FROM ojs.edit_decisions WHERE submission_id = 9
+UNION ALL
+SELECT 'event_log', COUNT(*) FROM ojs.event_log WHERE assoc_type = 1048585 AND assoc_id = 9;
+
+-- Remove registros ligado a uma submissão órfã
+START TRANSACTION;
+
+DELETE FROM ojs.stage_assignments WHERE submission_id = XXXX;
+DELETE FROM ojs.submission_settings WHERE submission_id = XXXX;
+DELETE FROM ojs.submission_files WHERE submission_id = XXXX;
+DELETE FROM ojs.review_rounds WHERE submission_id = XXXX;
+DELETE FROM ojs.review_assignments WHERE submission_id = XXXX;
+DELETE FROM ojs.edit_decisions WHERE submission_id = XXXX;
+DELETE FROM ojs.event_log WHERE assoc_type = 1048585 AND assoc_id = XXXX;
+DELETE FROM ojs.submissions WHERE submission_id = XXXX;
+
+COMMIT;
